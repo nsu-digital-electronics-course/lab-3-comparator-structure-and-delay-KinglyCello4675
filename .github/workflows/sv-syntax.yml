@@ -1,0 +1,47 @@
+# Название workflow — отображается в GitHub Actions
+name: sv-syntax-check
+
+# Когда запускать:
+# - при каждом push
+# - (опционально можно добавить pull_request)
+on:
+  push:
+
+jobs:
+  syntax:
+    # Используем стандартный Linux runner GitHub
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Забираем содержимое репозитория
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Устанавливаем Icarus Verilog
+      #    Он используется ТОЛЬКО как синтаксический парсер,
+      #    Vivado здесь не заменяется и не эмулируется.
+      - name: Install Icarus Verilog
+        run: sudo apt-get install -y iverilog
+
+      # 3. Проверка синтаксиса SystemVerilog
+      - name: SystemVerilog syntax check
+        run: |
+          # Включаем nullglob, чтобы *.sv не превращалось
+          # в буквальную строку, если файлов нет
+          shopt -s nullglob
+
+          # Собираем список файлов SystemVerilog
+          RTL_FILES=(src/rtl/*.sv)
+          TB_FILES=(src/tb/*.sv)
+
+          # Проверяем, что хотя бы один RTL-файл существует
+            if [ ${#RTL_FILES[@]} -eq 0 ]; then
+            echo "ERROR: No SystemVerilog files found in src/rtl/"
+            exit 1
+          fi
+
+          # Запускаем iverilog:
+          # -g2012  : режим SystemVerilog (IEEE 1800-2012)
+          # -tnull  : не генерировать выходной файл, только парсинг
+          # Проверяем и RTL, и testbench (если он есть)
+          iverilog -g2012 -tnull "${RTL_FILES[@]}" "${TB_FILES[@]}"
